@@ -60,14 +60,13 @@ Le projet repose sur plusieurs composants interconnectés :
 Clonez le projet :
 
 ```sh
-git clone https://github.com/Alexadnre/DataEngineerTools.git
+git clone https://github.com/Alexadnre/AmazonWebScrapper
 
 ```
 
 Démarrez l'application :
 
 ```
-cd DataEngineerTools/6Evaluation/Projet
 docker-compose up --build -d
 
 ```
