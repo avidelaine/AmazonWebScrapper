@@ -75,7 +75,7 @@ docker-compose up --build -d
 
 * **Reliable Amazon scraping under anti-bot rules**:
 
-  * UA rotation, randomized delays, targeted HTML parsing.
+  * Used User-Agent spoofing (including older browser profiles) to bypass restrictions, with randomized delays and targeted HTML parsing.
   * Limitation: cloud IPs can be blocked; next step: proxy/IP rotation for long-term deployment.
 
 ---
