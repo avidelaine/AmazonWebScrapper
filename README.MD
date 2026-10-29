@@ -1,85 +1,67 @@
+# Amazon price tracker
 
-# Amazon Web Scraper 🚀
+Track products or search themes on amazon.fr, keep a price history, and search the catalogue instantly — a small data pipeline with scraping, a document store, a search index and a web UI, each in its own container.
 
-**Scalable, Dockerized price tracking system with full data pipeline — Python, MongoDB, Elasticsearch.**
+Built in early 2025 as the final project of a data-engineering course (ESIEE Paris).
 
----
+![Home](interface/static/img/screen_home.png)
 
-## Why this project matters
+## Architecture
 
-* Demonstrates solving a **real-world data engineering challenge**: collecting product data under anti-bot restrictions.
-* Showcases **end-to-end pipeline engineering**: scraper → database → search → REST API → optional UI.
-* Highlights **scalability, reliability, and containerized deployment** — skills highly valued in Big Tech.
-
----
-
-## Key Features
-
-* **Automated product tracking:** add a URL or keyword, snapshots scheduled automatically.
-* **Scalable & reliable:** handles 100+ products over long runs.
-* **Persistent & searchable:** MongoDB Replica Set for durability, Elasticsearch for fast queries.
-* **One-command deployment:** Docker Compose handles full stack.
-* **Anti-bot techniques:** UA rotation, randomized delays, and targeted HTML parsing.
-
-> ⚠️ Demo blocked on AWS due to IP restrictions, works locally via Docker.
-
----
-
-## Tech Stack
-
-* **Backend & UI:** Python, Flask
-* **Scraper:** BeautifulSoup / requests with anti-bot mitigations
-* **Storage & Search:** MongoDB Replica Set, Elasticsearch
-* **Deployment:** Docker / Docker Compose
-
----
-
-## Quickstart (local)
-
-```bash
-git clone https://github.com/Alexadnre/AmazonWebScraper
-cd AmazonWebScraper
-# configure .env (sample provided)
-docker-compose up --build -d
-# Open UI at http://localhost:5000
+```
+            ┌──────────────┐   tasks (theme or URL,     ┌───────────────┐
+ browser ──►│ Flask UI     │──  refresh interval)   ──► │ MongoDB       │
+            │ :5000        │◄── products, history ───── │ replica set   │
+            └──────────────┘                            └───────┬───────┘
+                   ▲                                            │ change stream
+                   │ search / autocomplete                      ▼
+            ┌──────┴───────┐                            ┌───────────────┐
+            │ Elasticsearch│◄── mongo-tracker (sync) ───│               │
+            │ + Kibana     │                            │ task-executer │──► amazon.fr
+            └──────────────┘                            │ (scheduler)   │
+                                                        └───────────────┘
 ```
 
----
+- **`task-executer/`** — polling scheduler. Reads the tracking tasks from MongoDB, runs the ones whose refresh interval has elapsed, writes products and price points back.
+- **`scrapping/`** — `requests` + BeautifulSoup scraper for search pages and product pages (price, rating, image, ASIN), with rotating user agents and random delays.
+- **`mongo_to_elastic/`** — listens to the MongoDB **change stream** (hence the replica set) and mirrors every insert/update/delete into an Elasticsearch index, so search never touches the primary store.
+- **`interface/`** — Flask app: add a product URL or a search theme to track, see the price history, full-text search with autocomplete backed by Elasticsearch.
+- **`mongo_requests/`, `shared/`** — data-access helpers shared by the services.
 
-## How it works (2-min walkthrough)
+## Run it
 
-1. Open UI → search by keyword or product URL.
-2. Add product → snapshot stored in MongoDB, indexed in Elasticsearch.
-3. Monitor product page → price history updates automatically as scheduler runs.
+```bash
+git clone https://github.com/avidelaine/AmazonWebScrapper.git
+cd AmazonWebScrapper
+docker compose up --build
+```
 
----
+| Service | URL |
+|---|---|
+| Web UI | http://localhost:5000 |
+| Kibana | http://localhost:5601 |
+| Elasticsearch | http://localhost:9200 |
 
-## Core API Endpoints
+Container names, ports and database names are in `.env` (no secrets in it).
 
-| Endpoint                | Method | Description                      |
-| ----------------------- | ------ | -------------------------------- |
-| `/scrape`               | POST   | Trigger scrape by keyword or URL |
-| `/products`             | GET    | List products                    |
-| `/history/<product_id>` | GET    | Get price history                |
+## Routes
 
----
+| Route | Method | Purpose |
+|---|---|---|
+| `/` | GET | Home |
+| `/track` | GET, POST | List tracked items; add a URL or a theme with a refresh delay |
+| `/delete_product` | POST | Stop tracking an item |
+| `/search` | GET | Search page |
+| `/autocomplete` | GET | Suggestions from Elasticsearch |
+| `/product/<id>` | GET | Product detail with price history |
+| `/check_connections` | GET | Health of Mongo and Elasticsearch |
 
-## Tests
+## Screens
 
-* Basic database and update tests with `pytest`.
-* Can run with services up or inside a dev container.
+| Tracking | History |
+|---|---|
+| ![Track](interface/static/img/screen_track.png) | ![History](interface/static/img/screen_history.png) |
 
----
+## Limitations
 
-## Technical Highlight
-
-* **Reliable Amazon scraping under anti-bot rules**:
-
-  * Used User-Agent spoofing (including older browser profiles) to bypass restrictions, with randomized delays and targeted HTML parsing.
-  * Limitation: cloud IPs can be blocked; next step: proxy/IP rotation for long-term deployment.
-
----
-
-## Maintainer
-
-**Alexandre Videlaine** — GitHub: [@Alexadnre](https://github.com/Alexadnre)
+Amazon changes its markup and rate-limits aggressively; the scraper is a course project, not a production crawler. There is no authentication on the UI. Tests under `test/` are ad-hoc connection scripts, not a test suite.
